@@ -3,9 +3,7 @@
 // @namespace    https://github.com/coni233/bili-live-auto-like
 // @homepageURL  https://github.com/coni233/bili-live-auto-like
 // @supportURL   https://github.com/coni233/bili-live-auto-like/issues
-// @updateURL    https://raw.githubusercontent.com/coni233/bili-live-auto-like/main/bilibili-live-auto-like.user.js
-// @downloadURL  https://raw.githubusercontent.com/coni233/bili-live-auto-like/main/bilibili-live-auto-like.user.js
-// @version      1.3.0
+// @version      1.4.0
 // @description  在 B 站直播间自动点赞：每点赞 30 次 +1 亲密度，每日点赞亲密度上限 10（即最多 300 赞/房间/天）。自动检测开播状态，本地记录每日进度，到上限自动停止。
 // @author       coni
 // @match        https://live.bilibili.com/*

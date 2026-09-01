@@ -5,7 +5,7 @@
 // @supportURL   https://github.com/coni233/bili-live-auto-like/issues
 // @updateURL    https://raw.githubusercontent.com/coni233/bili-live-auto-like/main/bilibili-live-auto-like.user.js
 // @downloadURL  https://raw.githubusercontent.com/coni233/bili-live-auto-like/main/bilibili-live-auto-like.user.js
-// @version      1.2.0
+// @version      1.3.0
 // @description  在 B 站直播间自动点赞：每点赞 30 次 +1 亲密度，每日点赞亲密度上限 10（即最多 300 赞/房间/天）。自动检测开播状态，本地记录每日进度，到上限自动停止。
 // @author       coni
 // @match        https://live.bilibili.com/*
@@ -46,6 +46,9 @@
     // 每日通过点赞获得的亲密度上限（超过后自动停止）
     DAILY_INTIMACY_CAP: 10,
 
+    // 冗余点赞次数：实际会多点赞这么多，防止个别点赞漏记导致亲密度差一点
+    REDUNDANT_LIKES: 10,
+
     // 连续点赞 N 次后暂停一小段时间，模拟人工节奏
     BATCH_SIZE: 30,
 
@@ -76,6 +79,7 @@
   const SETTINGS_KEY = 'biliAutoLike.settings.v1';
   const SCRIPT_NAME = 'B站自动点赞';
   const DAILY_MAX_LIKES = CONFIG.LIKES_PER_INTIMACY * CONFIG.DAILY_INTIMACY_CAP;
+  const DAILY_TARGET_LIKES = DAILY_MAX_LIKES + CONFIG.REDUNDANT_LIKES;
 
   // 点赞按钮候选选择器（覆盖不同版本页面）
   const LIKE_SELECTORS = [
@@ -250,7 +254,7 @@
         <div class="balp-body">
           <div class="balp-status-row"><span class="balp-dot"></span><span class="balp-status">初始化…</span></div>
           <div class="balp-progress"><div class="balp-progress-fill"></div></div>
-          <div class="balp-detail">今日 0 / ${DAILY_MAX_LIKES} 赞（+0 亲密度）</div>
+          <div class="balp-detail">今日 0 / ${DAILY_TARGET_LIKES} 赞（+0 亲密度）</div>
           <div class="balp-speed-row">
             <span>速度</span>
             <select class="balp-speed">
@@ -409,10 +413,10 @@
     setProgress(likes) {
       const intimacy = Math.floor(likes / CONFIG.LIKES_PER_INTIMACY);
       const capIntimacy = CONFIG.DAILY_INTIMACY_CAP;
-      const pct = Math.min(100, Math.round((likes / DAILY_MAX_LIKES) * 100));
+      const pct = Math.min(100, Math.round((likes / DAILY_TARGET_LIKES) * 100));
       this.progress.style.width = `${pct}%`;
       this.detail.textContent =
-        `今日 ${likes} / ${DAILY_MAX_LIKES} 赞（+${intimacy}/${capIntimacy} 亲密度）`;
+        `今日 ${likes} / ${DAILY_TARGET_LIKES} 赞（+${intimacy}/${capIntimacy} 亲密度）`;
       if (this.fabBadge) this.fabBadge.textContent = String(likes);
     },
   };
@@ -430,10 +434,10 @@
         Panel.setStatus('未识别到直播间', 'warn');
         return;
       }
-      if (Store.getCount(info.roomId) >= DAILY_MAX_LIKES) {
+      if (Store.getCount(info.roomId) >= DAILY_TARGET_LIKES) {
         Panel.setStatus('今日已达上限', 'done');
         Panel.setRunning(false);
-        notify(SCRIPT_NAME, '今日点赞亲密度已达上限（300 赞 / 10 亲密度），无需继续。');
+        notify(SCRIPT_NAME, `今日点赞目标已完成（${DAILY_TARGET_LIKES} 赞，含 ${CONFIG.REDUNDANT_LIKES} 冗余），无需继续。`);
         return;
       }
       this.running = true;
@@ -457,10 +461,10 @@
         const roomId = cur.roomId || info.roomId;
 
         // 达到每日上限则停止
-        if (Store.getCount(roomId) >= DAILY_MAX_LIKES) {
+        if (Store.getCount(roomId) >= DAILY_TARGET_LIKES) {
           this.stop('今日已达上限');
-          Panel.setProgress(DAILY_MAX_LIKES);
-          notify(SCRIPT_NAME, '今日点赞亲密度已达上限（300 赞 / 10 亲密度），已自动停止。');
+          Panel.setProgress(DAILY_TARGET_LIKES);
+          notify(SCRIPT_NAME, `今日点赞目标已完成（${DAILY_TARGET_LIKES} 赞，含 ${CONFIG.REDUNDANT_LIKES} 冗余），已自动停止。`);
           return;
         }
 
@@ -491,10 +495,10 @@
           const total = Store.getCount(roomId);
           Panel.setProgress(total);
 
-          if (total >= DAILY_MAX_LIKES) {
+          if (total >= DAILY_TARGET_LIKES) {
             this.stop('今日已达上限');
             Panel.setProgress(total);
-            notify(SCRIPT_NAME, '今日点赞亲密度已达上限（300 赞 / 10 亲密度），已自动停止。');
+            notify(SCRIPT_NAME, `今日点赞目标已完成（${DAILY_TARGET_LIKES} 赞，含 ${CONFIG.REDUNDANT_LIKES} 冗余），已自动停止。`);
             return;
           }
         } catch (e) {

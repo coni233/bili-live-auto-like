@@ -60,6 +60,7 @@ B 站网页端单次点赞间隔最低约 500ms，低于这个值会被直接拒
 ## 实现说明
 
 - 脚本直接点击直播间页面原生点赞按钮，由 B 站页面自己上报点赞，不发起任何跨域请求；
+- 支持活动专题页等把直播间嵌在同源 iframe 里的页面：会进入 iframe 查找并点击其中的点赞按钮；
 - 房间号、开播状态读取页面自带的 `window.__NEPTUNE_IS_MY_WAIFU__`（即 `roomInitRes.data`），读不到时回退到 URL 解析；
 - 每日计数存放在 Tampermonkey 本地存储（键 `biliAutoLike.daily.v1`），只存日期与各房间点赞数，不收集任何个人信息；
 - 参考脚本 [bili-cat-butler.user.js](https://github.com/coni233/bili-cat-butler) 的存储/面板/菜单模式编写，但功能独立、更轻量。

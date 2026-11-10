@@ -3,7 +3,7 @@
 // @namespace    https://github.com/coni233/bili-live-auto-like
 // @homepageURL  https://github.com/coni233/bili-live-auto-like
 // @supportURL   https://github.com/coni233/bili-live-auto-like/issues
-// @version      1.4.0
+// @version      1.5.0
 // @description  在 B 站直播间自动点赞：每点赞 30 次 +1 亲密度，每日点赞亲密度上限 10（即最多 300 赞/房间/天）。自动检测开播状态，本地记录每日进度，到上限自动停止。
 // @author       coni
 // @match        https://live.bilibili.com/*
@@ -181,50 +181,135 @@
   };
 
   /* ===================== 房间信息读取 ===================== */
+  /* 收集顶层页面及同源 iframe 的 document（活动专题页的播放器在 iframe 内） */
+  function collectDocuments() {
+    const docs = [];
+    const walk = (doc, depth) => {
+      if (!doc || docs.indexOf(doc) >= 0 || depth > 3) return;
+      docs.push(doc);
+      let frames = [];
+      try {
+        frames = Array.from(doc.querySelectorAll('iframe, frame'));
+      } catch (e) {
+        frames = [];
+      }
+      for (const frame of frames) {
+        try {
+          if (frame.contentDocument) walk(frame.contentDocument, depth + 1);
+        } catch (e) {
+          /* 跨域 iframe 无法访问，忽略 */
+        }
+      }
+    };
+    walk(document, 0);
+    return docs;
+  }
+
+  function readRoomState(win) {
+    try {
+      const neptune = win.__NEPTUNE_IS_MY_WAIFU__ || {};
+      const init = (neptune.roomInitRes && neptune.roomInitRes.data) ||
+        (win.__SSR_INITIAL_STATE__ && win.__SSR_INITIAL_STATE__.roomInfo) ||
+        {};
+      return {
+        roomId: String(init.room_id || init.roomId || ''),
+        liveStatus: init.live_status != null ? Number(init.live_status) : null,
+      };
+    } catch (e) {
+      return { roomId: '', liveStatus: null };
+    }
+  }
+
   function getRoomInfo() {
     let roomId = '';
     let liveStatus = null;
-    try {
-      const neptune = window.__NEPTUNE_IS_MY_WAIFU__ || {};
-      const init = (neptune.roomInitRes && neptune.roomInitRes.data) ||
-        (window.__SSR_INITIAL_STATE__ && window.__SSR_INITIAL_STATE__.roomInfo) ||
-        {};
-      roomId = String(init.room_id || init.roomId || '');
-      liveStatus = init.live_status != null ? Number(init.live_status) : null;
-    } catch (e) {
-      /* 忽略读取失败 */
+    const docs = collectDocuments();
+
+    for (const doc of docs) {
+      const win = doc.defaultView;
+      if (!win) continue;
+      const state = readRoomState(win);
+      if (!roomId && state.roomId) roomId = state.roomId;
+      if (liveStatus == null && state.liveStatus != null) liveStatus = state.liveStatus;
     }
+
     if (!roomId) {
       const m = /^\/(\d+)/.exec(location.pathname);
       if (m) roomId = m[1];
     }
+    if (!roomId) {
+      for (const doc of docs) {
+        try {
+          const href = doc.defaultView && doc.defaultView.location.href;
+          const m = href && /\/(\d{5,})/.exec(href);
+          if (m) {
+            roomId = m[1];
+            break;
+          }
+        } catch (e) {
+          /* 忽略 */
+        }
+      }
+    }
+
     return { roomId, liveStatus };
   }
 
   /* ===================== 点赞按钮 ===================== */
-  function findLikeButton() {
-    for (const selector of LIKE_SELECTORS) {
-      let els = [];
-      try {
-        els = Array.from(document.querySelectorAll(selector));
-      } catch (e) {
-        continue;
-      }
-      if (!els.length) continue;
-      return els.find((el) => isVisible(el)) || els[0];
-    }
-    return null;
-  }
-
   function isVisible(el) {
     if (!el) return false;
-    const style = window.getComputedStyle(el);
+    const doc = el.ownerDocument || document;
+    const win = doc.defaultView || window;
+    const style = win.getComputedStyle(el);
     return (
       style.display !== 'none' &&
       style.visibility !== 'hidden' &&
       style.opacity !== '0' &&
       el.getClientRects().length > 0
     );
+  }
+
+  function isLikeCandidate(el) {
+    if (!el || !el.ownerDocument) return false;
+    const id = el.id || '';
+    if (/animation|moment|so-hot|vm$/.test(id)) return false;
+    const doc = el.ownerDocument;
+    const win = doc.defaultView || window;
+    const style = win.getComputedStyle(el);
+    const tag = el.tagName;
+    const clickable =
+      tag === 'BUTTON' || tag === 'A' ||
+      el.getAttribute('role') === 'button' ||
+      style.cursor === 'pointer';
+    return clickable && el.getClientRects().length > 0;
+  }
+
+  /* 在顶层页面与同源 iframe 中查找点赞按钮 */
+  function findLikeButton() {
+    const docs = collectDocuments();
+    for (const doc of docs) {
+      for (const selector of LIKE_SELECTORS) {
+        let els = [];
+        try {
+          els = Array.from(doc.querySelectorAll(selector));
+        } catch (e) {
+          continue;
+        }
+        const visible = els.find((el) => isVisible(el));
+        if (visible) return visible;
+      }
+    }
+    for (const doc of docs) {
+      let els = [];
+      try {
+        els = Array.from(doc.querySelectorAll('[class*="like" i]'));
+      } catch (e) {
+        continue;
+      }
+      const candidate = els.find((el) => isVisible(el) && isLikeCandidate(el));
+      if (candidate) return candidate;
+    }
+    return null;
   }
 
   /* ===================== 悬浮面板 ===================== */

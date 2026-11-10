@@ -3,7 +3,7 @@
 // @namespace    https://github.com/coni233/bili-live-auto-like
 // @homepageURL  https://github.com/coni233/bili-live-auto-like
 // @supportURL   https://github.com/coni233/bili-live-auto-like/issues
-// @version      1.5.0
+// @version      1.5.1
 // @description  在 B 站直播间自动点赞：每点赞 30 次 +1 亲密度，每日点赞亲密度上限 10（即最多 300 赞/房间/天）。自动检测开播状态，本地记录每日进度，到上限自动停止。
 // @author       coni
 // @match        https://live.bilibili.com/*
@@ -81,6 +81,8 @@
 
   // 点赞按钮候选选择器（覆盖不同版本页面）
   const LIKE_SELECTORS = [
+    '[data-type="dianzan.0.show"]',
+    '[data-event-name="dianzan.0.show"]',
     '.like-btn',
     '.web-like-icon',
     '.web-like-btn',
@@ -606,7 +608,9 @@
   GM_addStyle(`
     #bili-auto-like-panel {
       position: fixed;
-      z-index: 999999;
+      z-index: 2147483647 !important;
+      visibility: visible !important;
+      pointer-events: auto !important;
       width: 220px;
       background: rgba(24, 27, 36, 0.96);
       color: #eef0f5;
@@ -628,7 +632,9 @@
     }
     #bili-auto-like-fab {
       position: fixed;
-      z-index: 999999;
+      z-index: 2147483647 !important;
+      visibility: visible !important;
+      pointer-events: auto !important;
       width: 44px;
       height: 44px;
       border-radius: 50%;
